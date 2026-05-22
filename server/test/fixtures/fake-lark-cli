@@ -1,0 +1,55 @@
+#!/usr/bin/env node
+import { appendFileSync } from "node:fs";
+
+const args = process.argv.slice(2);
+const logPath = process.env.FAKE_LARK_CLI_LOG;
+
+if (logPath) {
+  appendFileSync(logPath, `${JSON.stringify(args)}\n`);
+}
+
+function print(payload) {
+  process.stdout.write(`${JSON.stringify(payload)}\n`);
+}
+
+if (args[0] === "wiki" && args[1] === "spaces" && args[2] === "get_node") {
+  print({
+    code: 0,
+    data: {
+      node: {
+        obj_type: "bitable",
+        obj_token: "app_fake_base_token",
+        title: "Prompt 列表"
+      }
+    }
+  });
+  process.exit(0);
+}
+
+if (args[0] === "base" && args[1] === "+record-upsert") {
+  const jsonIndex = args.indexOf("--json");
+  const fields = jsonIndex >= 0 ? JSON.parse(args[jsonIndex + 1]) : {};
+  print({
+    code: 0,
+    data: {
+      record: {
+        record_id: "rec_fake_prompt",
+        fields
+      }
+    }
+  });
+  process.exit(0);
+}
+
+if (args[0] === "base" && args[1] === "+record-upload-attachment") {
+  print({
+    code: 0,
+    data: {
+      file_token: "file_fake_image"
+    }
+  });
+  process.exit(0);
+}
+
+process.stderr.write(`Unexpected fake lark-cli call: ${args.join(" ")}\n`);
+process.exit(2);

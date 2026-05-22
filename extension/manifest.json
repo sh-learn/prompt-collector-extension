@@ -1,0 +1,44 @@
+{
+  "manifest_version": 3,
+  "name": "Prompt Collector to Feishu",
+  "description": "Collect prompts, images, and source links from the current page, then save them to a Feishu/Lark Base.",
+  "version": "0.1.0",
+  "permissions": [
+    "activeTab",
+    "identity",
+    "scripting",
+    "storage"
+  ],
+  "host_permissions": [
+    "https://feishu.cn/*",
+    "https://*.feishu.cn/*",
+    "https://larksuite.com/*",
+    "https://*.larksuite.com/*",
+    "https://x.com/*",
+    "https://twitter.com/*",
+    "https://*.twimg.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "Collect Prompt"
+  },
+  "options_page": "options.html",
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "popup.html",
+        "popup.css",
+        "popup.js"
+      ],
+      "matches": [
+        "https://x.com/*",
+        "https://twitter.com/*",
+        "https://*/*",
+        "http://*/*"
+      ]
+    }
+  ]
+}

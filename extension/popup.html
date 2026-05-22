@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Prompt Collector</title>
+    <link rel="stylesheet" href="popup.css">
+  </head>
+  <body>
+    <main class="panel">
+      <header class="header">
+        <div>
+          <h1>Prompt Collector</h1>
+          <p id="status">准备采集当前页面</p>
+        </div>
+        <div class="header-actions">
+          <button id="collect" class="icon-button" type="button" title="刷新">↻</button>
+          <button id="openOptions" class="icon-button" type="button" title="设置">⚙</button>
+          <button id="closePopup" class="icon-button" type="button" title="关闭">×</button>
+        </div>
+      </header>
+
+      <section class="actions">
+        <select id="tableSelect" class="table-select" disabled>
+          <option value="">选择数据表</option>
+        </select>
+      </section>
+
+      <section id="preview" class="preview" hidden>
+        <div class="meta">
+          <span id="imageCount">0 张图片</span>
+          <span id="sourceHost"></span>
+        </div>
+        <div id="fieldForm" class="field-form"></div>
+        <div id="images" class="images"></div>
+      </section>
+
+      <footer class="footer">
+        <button id="save" class="save-button" type="button" disabled>保存到飞书</button>
+        <a id="recordLink" class="record-link" href="#" target="_blank" rel="noreferrer" hidden>打开飞书数据表</a>
+      </footer>
+    </main>
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>

@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Prompt Collector 设置</title>
+    <link rel="stylesheet" href="options.css">
+  </head>
+  <body>
+    <main>
+      <h1>Prompt Collector 设置</h1>
+      <section class="block">
+        <h2>1. 飞书应用</h2>
+        <label>
+          飞书 App ID
+          <input id="feishuAppId" type="text" placeholder="cli_xxx">
+        </label>
+        <label>
+          飞书 App Secret
+          <input id="feishuAppSecret" type="password" placeholder="仅保存在本机 Chrome storage，可留空表示不覆盖">
+        </label>
+        <label>
+          Chrome OAuth Redirect URL
+          <div class="inline">
+            <input id="redirectUri" type="url" readonly>
+            <button id="copyRedirect" type="button" class="secondary">复制</button>
+          </div>
+        </label>
+        <div class="row">
+          <button id="saveApp" type="button">保存应用信息</button>
+          <button id="connect" type="button" class="secondary">连接飞书</button>
+          <button id="disconnect" type="button" class="ghost">断开</button>
+        </div>
+      </section>
+
+      <section class="block">
+        <h2>2. 多维表格目标</h2>
+        <label>
+          知识库里的多维表格链接
+          <input id="targetInput" type="text" placeholder="https://my.feishu.cn/wiki/...?table=tbl...&view=...">
+        </label>
+        <p class="hint">粘贴打开多维表格时浏览器地址栏里的完整链接。链接里需要包含 table=...</p>
+        <button id="initTarget" type="button">绑定多维表格</button>
+      </section>
+
+      <section class="block">
+        <h2>状态</h2>
+        <dl>
+          <dt>授权</dt>
+          <dd id="authStatus">-</dd>
+          <dt>App Secret</dt>
+          <dd id="secretStatus">-</dd>
+          <dt>Base Token</dt>
+          <dd id="baseToken">-</dd>
+          <dt>Table ID</dt>
+          <dd id="tableId">-</dd>
+          <dt>数据表</dt>
+          <dd id="tableCount">-</dd>
+        </dl>
+        <button id="refreshTables" type="button" class="secondary">刷新数据表列表</button>
+      </section>
+      <label>
+        说明
+        <textarea readonly>请先把上方 Redirect URL 配置到飞书开放平台应用的重定向 URL。App Secret 仅保存在本机 Chrome storage，不会上传到第三方服务。这个模式适合个人自建飞书应用和本地自用插件；公开分发场景建议改用 token broker。</textarea>
+      </label>
+      <p id="status"></p>
+    </main>
+    <script type="module" src="options.js"></script>
+  </body>
+</html>
