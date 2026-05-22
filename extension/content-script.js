@@ -25,7 +25,20 @@
       return null;
     }
     const articles = [...document.querySelectorAll("article[data-testid='tweet']")];
-    return articles.find((article) => article.getBoundingClientRect().top >= 0) || articles[0] || null;
+    const statusPath = location.pathname.match(/^\/[^/]+\/status\/\d+/)?.[0] || "";
+    const linkedArticle = statusPath && articles.find((article) => [...article.querySelectorAll("time")]
+      .some((time) => {
+        try {
+          return new URL(time.closest("a[href]")?.href || "", location.href).pathname.startsWith(statusPath);
+        } catch {
+          return false;
+        }
+      }));
+    if (linkedArticle) return linkedArticle;
+    return articles.find((article) => {
+      const rect = article.getBoundingClientRect();
+      return rect.bottom > 0 && rect.top < window.innerHeight;
+    }) || articles[0] || null;
   }
 
   function extractTweet(article) {
@@ -61,6 +74,23 @@
     const tail = text.slice(start);
     const stop = tail.search(/\n\s*(?:negative prompt|参数|model|source|comments?|回复|转发)\s*[:：]/i);
     return (stop >= 0 ? tail.slice(0, stop) : tail).trim().slice(0, 8000);
+  }
+
+  function tweetPostUrl(article) {
+    const timeLink = article?.querySelector("time")?.closest("a[href]");
+    try {
+      return timeLink ? new URL(timeLink.href, location.href).href : location.href;
+    } catch {
+      return location.href;
+    }
+  }
+
+  function promptCandidates(rawText, idPrefix) {
+    const marked = extractPromptFromText(rawText || "");
+    const text = (marked || rawText || "").trim();
+    return text
+      ? [{ id: `${idPrefix}-prompt-1`, text, reason: marked ? "marker" : "post_text" }]
+      : [];
   }
 
   function imageUrl(img) {
@@ -134,6 +164,33 @@
     ).slice(0, 24);
   }
 
+  function xArticleImages(article, idPrefix) {
+    return extractImages(article)
+      .filter((image) => image.url.includes("pbs.twimg.com/media/"))
+      .map((image, index) => ({ ...image, id: `${idPrefix}-image-${index + 1}` }));
+  }
+
+  function xCandidates(mainArticle) {
+    if (!mainArticle) return [];
+    const articles = [...document.querySelectorAll("article[data-testid='tweet']")];
+    return uniqBy([mainArticle, ...articles].filter(Boolean), (article) => article)
+      .map((article, index) => {
+        const id = `x-post-${index + 1}`;
+        const extracted = extractTweet(article);
+        const rawText = extracted?.prompt || textOf(article);
+        return {
+          id,
+          kind: index === 0 ? "main" : "reply",
+          author: extracted?.author || "",
+          postUrl: tweetPostUrl(article),
+          rawText,
+          promptCandidates: promptCandidates(rawText, id),
+          images: xArticleImages(article, id)
+        };
+      })
+      .filter((candidate) => candidate.rawText || candidate.images.length);
+  }
+
   const article = currentTweetArticle();
   const tweet = extractTweet(article);
   const main = article || document.querySelector("main") || document.body;
@@ -155,6 +212,7 @@
     videos: extractVideos(main),
     links: extractLinks(main),
     capturedAt: tweet?.time || new Date().toISOString(),
-    rawText
+    rawText,
+    candidates: isX ? xCandidates(article) : []
   };
 })();
