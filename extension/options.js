@@ -114,9 +114,9 @@ els.initTarget.addEventListener("click", async () => {
     setStatus("正在绑定多维表格...");
     const response = await send({ type: "target:init", targetInput: els.targetInput.value.trim() });
     await renderLatest(response.target.settings);
-    setStatus(response.target.boundExisting ? "已绑定目标多维表格" : "Prompt 列表已创建");
+    setStatus("已绑定目标多维表格");
   } catch (error) {
-    setStatus(error.message || "创建失败", true);
+    setStatus(error.message || "绑定失败", true);
   }
 });
 

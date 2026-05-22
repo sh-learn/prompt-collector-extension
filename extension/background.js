@@ -3,7 +3,6 @@ import {
   FEISHU_ACCOUNTS_ORIGIN,
   FEISHU_API_ORIGIN,
   REQUIRED_SCOPES,
-  STANDARD_FIELDS,
   STORAGE_KEYS,
   defaultSettings
 } from "./lib/feishu-config.js";
@@ -249,18 +248,6 @@ async function feishu(path, options = {}, retry = true) {
   return data;
 }
 
-function extractToken(input = "") {
-  const value = input.trim();
-  if (!value) return "";
-  try {
-    const url = new URL(value);
-    const parts = url.pathname.split("/").filter(Boolean);
-    return parts.at(-1) || "";
-  } catch {
-    return value;
-  }
-}
-
 function parseTargetInput(input = "") {
   const value = input.trim();
   if (!value) return { kind: "empty" };
@@ -274,23 +261,6 @@ function parseTargetInput(input = "") {
   } catch {
     return { kind: "token", value, token: value };
   }
-}
-
-async function resolveWikiTarget(targetInput) {
-  const token = extractToken(targetInput);
-  if (!token) {
-    const data = await feishu("/open-apis/wiki/v2/spaces/my_library");
-    return { spaceId: data.data?.space?.space_id || data.data?.space_id, parentNodeToken: "" };
-  }
-
-  if (/^\d+$/.test(token)) {
-    return { spaceId: token, parentNodeToken: "" };
-  }
-
-  const data = await feishu(`/open-apis/wiki/v2/spaces/get_node?token=${encodeURIComponent(token)}`);
-  const node = data.data?.node || data.data || {};
-  if (!node.space_id) throw new Error("无法从 Wiki 节点解析知识空间 ID");
-  return { spaceId: node.space_id, parentNodeToken: node.node_token || token };
 }
 
 function normalizeField(field, order = 0) {
@@ -319,11 +289,6 @@ function normalizeTable(table) {
     name,
     raw: table
   };
-}
-
-function fieldPayload(field) {
-  const { key: _key, ...payload } = field;
-  return payload;
 }
 
 async function listBaseTables(baseToken) {
@@ -423,92 +388,6 @@ async function bindExistingBase(targetInput) {
     fields,
     fieldMap,
     boundExisting: true
-  };
-}
-
-async function createPromptBase(targetInput) {
-  const parsed = parseTargetInput(targetInput);
-  if (parsed.tableId) {
-    return bindExistingBase(targetInput);
-  }
-
-  const target = await resolveWikiTarget(targetInput);
-  const nodePayload = {
-    node_type: "origin",
-    obj_type: "bitable",
-    title: "Prompt 列表",
-    ...(target.parentNodeToken ? { parent_node_token: target.parentNodeToken } : {})
-  };
-  const nodeResult = await feishu(`/open-apis/wiki/v2/spaces/${encodeURIComponent(target.spaceId)}/nodes`, {
-    method: "POST",
-    body: JSON.stringify(nodePayload)
-  });
-  const node = nodeResult.data?.node || nodeResult.data || {};
-  const baseToken = node.obj_token;
-  if (!baseToken) throw new Error("飞书没有返回新建多维表格 token");
-
-  const titleField = STANDARD_FIELDS[0];
-  const tableResult = await feishu(`/open-apis/base/v3/bases/${encodeURIComponent(baseToken)}/tables`, {
-    method: "POST",
-    body: JSON.stringify({
-      name: "Prompt 列表",
-      fields: [fieldPayload(titleField)]
-    })
-  });
-  const table = tableResult.data?.table || tableResult.data || {};
-  const tableId = table.table_id || table.id;
-  if (!tableId) throw new Error("飞书没有返回数据表 ID");
-
-  const fieldMap = {};
-  const returnedFields = tableResult.data?.fields || table.fields || [];
-  for (const field of returnedFields.map(normalizeField)) {
-    const spec = STANDARD_FIELDS.find((item) => item.name === field.name);
-    if (spec && field.id) fieldMap[spec.key] = field.id;
-  }
-
-  if (!fieldMap.title) {
-    const firstField = normalizeField(returnedFields[0] || {});
-    if (firstField.id) fieldMap.title = firstField.id;
-  }
-
-  for (const field of STANDARD_FIELDS.slice(1)) {
-    const result = await feishu(
-      `/open-apis/base/v3/bases/${encodeURIComponent(baseToken)}/tables/${encodeURIComponent(tableId)}/fields`,
-      {
-        method: "POST",
-        body: JSON.stringify(fieldPayload(field))
-      }
-    );
-    const created = normalizeField(result.data?.field || result.data || {});
-    fieldMap[field.key] = created.id || field.name;
-  }
-
-  const fieldsResult = await feishu(
-    `/open-apis/base/v3/bases/${encodeURIComponent(baseToken)}/tables/${encodeURIComponent(tableId)}/fields`
-  ).catch(() => null);
-  const listedFields = fieldsResult?.data?.items || fieldsResult?.data?.fields || fieldsResult?.items || [];
-  for (const listed of listedFields.map(normalizeField)) {
-    const spec = STANDARD_FIELDS.find((item) => item.name === listed.name);
-    if (spec && listed.id) fieldMap[spec.key] = listed.id;
-  }
-
-  const settings = await setSettings({
-    targetInput,
-    wikiNodeToken: node.node_token || "",
-    targetBaseToken: baseToken,
-    targetTableId: tableId,
-    targetTables: [{ tableId, name: "Prompt 列表" }],
-    fieldMap,
-    tableFieldMaps: {
-      [tableId]: fieldMap
-    }
-  });
-  return {
-    settings,
-    node,
-    baseToken,
-    tableId,
-    fieldMap
   };
 }
 
@@ -904,7 +783,7 @@ async function handleMessage(message) {
       await chrome.storage.local.remove([STORAGE_KEYS.TOKENS, STORAGE_KEYS.OAUTH]);
       return { settings: await setSettings({ authStatus: "disconnected" }) };
     case "target:init":
-      return { ok: true, target: await createPromptBase(message.targetInput || "") };
+      return { ok: true, target: await bindExistingBase(message.targetInput || "") };
     case "target:refreshTables": {
       const settings = await getSettings();
       if (!settings.targetBaseToken) throw new Error("请先绑定多维表格");

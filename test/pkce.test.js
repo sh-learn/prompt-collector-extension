@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createPkcePair, createState, sha256Base64Url } from "../extension/lib/pkce.js";
-import { REQUIRED_SCOPES, STANDARD_FIELDS } from "../extension/lib/feishu-config.js";
+import { REQUIRED_SCOPES } from "../extension/lib/feishu-config.js";
 
 async function main() {
   const pair = await createPkcePair();
@@ -17,10 +17,9 @@ async function main() {
   assert(REQUIRED_SCOPES.includes("bitable:app"));
   assert(REQUIRED_SCOPES.includes("base:field:read"));
   assert(REQUIRED_SCOPES.includes("base:record:create"));
-  assert.deepEqual(
-    STANDARD_FIELDS.map((field) => field.key),
-    ["title", "prompt", "sourceUrl", "pageTitle", "author", "images", "capturedAt", "site", "rawJson"]
-  );
+  assert(!REQUIRED_SCOPES.includes("wiki:node:create"));
+  assert(!REQUIRED_SCOPES.includes("base:table:create"));
+  assert(!REQUIRED_SCOPES.includes("base:field:create"));
 
   console.log("pkce/config unit test passed");
 }
