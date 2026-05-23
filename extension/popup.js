@@ -164,6 +164,7 @@ function renderFieldForm(fields, fieldMap, capture) {
         if (kind === "select" && field.options?.length) return document.createElement("select");
         if (kind === "number") return document.createElement("input");
         if (kind === "datetime") return document.createElement("input");
+        if (kind === "url") return document.createElement("input");
         return document.createElement("textarea");
       })();
       input.className = "field-input";
