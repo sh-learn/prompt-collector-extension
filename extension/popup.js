@@ -6,7 +6,7 @@ import {
 const state = {
   capture: null,
   fieldValues: {},
-  selection: { prompts: {}, images: {} }
+  selection: { prompts: {}, images: {}, videos: {} }
 };
 
 const LAST_DRAFT_KEY = "promptCollectorLastDraft";
@@ -101,9 +101,13 @@ function formatDateTime(isoString) {
 }
 
 function defaultValues(capture) {
+  const promptSections = capture.promptSections || [];
+  const promptByType = (type) => promptSections.find((section) => section.type === type)?.text || "";
   return {
     title: capture.title || capture.pageTitle || "未命名提示词",
     prompt: capture.prompt || "",
+    storyboardPrompt: promptByType("storyboard") || "",
+    videoPrompt: promptByType("video") || "",
     sourceUrl: capture.sourceUrl || "",
     pageTitle: capture.pageTitle || "",
     author: capture.author || "",
@@ -117,12 +121,34 @@ function selectedPreviewCapture(capture) {
   return selectedCapture(capture, state.selection);
 }
 
+function scrollContainer() {
+  return document.scrollingElement || document.documentElement;
+}
+
+function withPreservedScroll(work) {
+  const container = scrollContainer();
+  const top = container.scrollTop;
+  const left = container.scrollLeft;
+  const result = work();
+  requestAnimationFrame(() => {
+    container.scrollTo(left, top);
+  });
+  return result;
+}
+
 function defaultValueForField(field, fieldMap, capture) {
   const fieldId = field.id || field.name;
   if (state.fieldValues && Object.hasOwn(state.fieldValues, fieldId)) {
     return state.fieldValues[fieldId] ?? "";
   }
   const defaults = defaultValues(capture);
+  const name = String(field.name || "");
+  if (/seedance|视频提示词|video\s*prompt/i.test(name)) {
+    return defaults.videoPrompt || "";
+  }
+  if (/分镜|故事板|storyboard/i.test(name)) {
+    return defaults.storyboardPrompt || "";
+  }
   const key = Object.entries(fieldMap || {}).find(([, fieldId]) => fieldId === field.id || fieldId === field.name)?.[0];
   return key ? defaults[key] || "" : "";
 }
@@ -238,14 +264,19 @@ async function send(message) {
 async function renderPreview(capture) {
   els.preview.hidden = false;
   const previewCapture = selectedPreviewCapture(capture);
-  const imageCount = previewCapture.images?.length || 0;
-  const videoCount = previewCapture.videos?.length || 0;
-  els.imageCount.textContent = `${imageCount} 张图片 / ${videoCount} 个视频`;
   els.sourceHost.textContent = new URL(capture.sourceUrl).hostname;
   els.recordLink.hidden = true;
   const schema = await loadSchema();
   renderCandidatePicker(capture);
   renderFieldForm(schema.fields, schema.fieldMap, previewCapture);
+  renderSelectedMedia(previewCapture);
+  els.save.disabled = false;
+}
+
+function renderSelectedMedia(previewCapture) {
+  const imageCount = previewCapture.images?.length || 0;
+  const videoCount = previewCapture.videos?.length || 0;
+  els.imageCount.textContent = `${imageCount} 张图片 / ${videoCount} 个视频`;
   els.images.replaceChildren(
     ...(previewCapture.images || []).slice(0, 8).map((image) => {
       const img = document.createElement("img");
@@ -254,7 +285,7 @@ async function renderPreview(capture) {
       img.loading = "lazy";
       return img;
     }),
-    ...(capture.videos || []).slice(0, 4).map((video) => {
+    ...(previewCapture.videos || []).slice(0, 4).map((video) => {
       const element = document.createElement("video");
       element.src = video.url;
       element.poster = video.poster || "";
@@ -264,7 +295,17 @@ async function renderPreview(capture) {
       return element;
     })
   );
-  els.save.disabled = false;
+}
+
+async function refreshSelectedPreview() {
+  if (!state.capture) return;
+  const previewCapture = selectedPreviewCapture(state.capture);
+  const schema = await loadSchema();
+  withPreservedScroll(() => {
+    renderSelectedMedia(previewCapture);
+    renderFieldForm(schema.fields, schema.fieldMap, previewCapture);
+  });
+  await saveLastDraft();
 }
 
 function renderCandidatePicker(capture) {
@@ -304,7 +345,7 @@ function renderCandidatePicker(capture) {
       input.checked = Boolean(state.selection.prompts[prompt.id]);
       input.addEventListener("change", () => {
         state.selection.prompts[prompt.id] = input.checked;
-        renderPreview(state.capture).then(saveLastDraft).catch(() => {});
+        refreshSelectedPreview().catch(() => {});
       });
       const body = document.createElement("span");
       body.className = "candidate-prompt-text";
@@ -324,7 +365,7 @@ function renderCandidatePicker(capture) {
         input.checked = Boolean(state.selection.images[image.id]);
         input.addEventListener("change", () => {
           state.selection.images[image.id] = input.checked;
-          renderPreview(state.capture).then(saveLastDraft).catch(() => {});
+          refreshSelectedPreview().catch(() => {});
         });
         const img = document.createElement("img");
         img.src = image.url;
@@ -334,6 +375,32 @@ function renderCandidatePicker(capture) {
         images.append(label);
       }
       card.append(images);
+    }
+
+    if (candidate.videos?.length) {
+      const videos = document.createElement("div");
+      videos.className = "candidate-images";
+      for (const video of candidate.videos) {
+        const label = document.createElement("label");
+        label.className = "candidate-image candidate-video";
+        const input = document.createElement("input");
+        input.type = "checkbox";
+        input.checked = Boolean(state.selection.videos?.[video.id]);
+        input.addEventListener("change", () => {
+          state.selection.videos = state.selection.videos || {};
+          state.selection.videos[video.id] = input.checked;
+          refreshSelectedPreview().catch(() => {});
+        });
+        const player = document.createElement("video");
+        player.src = video.url;
+        player.poster = video.poster || "";
+        player.muted = true;
+        player.preload = "metadata";
+        player.controls = true;
+        label.append(input, player);
+        videos.append(label);
+      }
+      card.append(videos);
     }
     return card;
   }));

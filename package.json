@@ -1,11 +1,11 @@
 {
   "name": "prompt-collector-extension",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "scripts": {
     "test": "npm run test:syntax && npm run test:unit && npm run test:content",
-    "test:syntax": "node --check extension/background.js && node --check extension/popup.js && node --check extension/options.js && node -e \"JSON.parse(require('fs').readFileSync('extension/manifest.json','utf8')); console.log('manifest ok')\"",
+    "test:syntax": "node --check extension/background.js && node --check extension/popup.js && node --check extension/options.js && node --check extension/x-video-bridge.js && node --check extension/x-video-observer-main.js && node -e \"JSON.parse(require('fs').readFileSync('extension/manifest.json','utf8')); console.log('manifest ok')\"",
     "test:unit": "node test/pkce.test.js && node test/popup-candidates.test.js",
     "test:content": "node test/content-script.test.js"
   }

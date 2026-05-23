@@ -117,10 +117,13 @@ async function main() {
                   <div data-testid="tweetPhoto">
                     <img src="https://pbs.twimg.com/media/main-post.svg?format=svg&name=medium" alt="main result">
                   </div>
+                  <video poster="https://pbs.twimg.com/amplify_video_thumb/123456/img/thumb.jpg">
+                    <source src="blob:https://x.com/main-video">
+                  </video>
                 </article>
                 <article id="reply" data-testid="tweet">
                   <div data-testid="User-Name">Reply Author<br>@reply</div>
-                  <div data-testid="tweetText">完整提示词：Reply prompt body.</div>
+                  <div data-testid="tweetText">Seedance参考提示词<br>Short visible body.<br>显示更多</div>
                   <a href="/reply/status/789"><time datetime="2026-05-22T10:03:00.000Z"></time></a>
                   <div data-testid="tweetPhoto">
                     <img src="https://pbs.twimg.com/media/reply-post.svg?format=svg&name=small" alt="reply result">
@@ -143,20 +146,71 @@ async function main() {
     await page.goto("https://x.com/main/status/123456");
     await page.waitForLoadState("networkidle");
     await page.evaluate(() => window.scrollTo(0, 620));
+    await page.evaluate(() => {
+      window.__PROMPT_COLLECTOR_X_VIDEOS = [
+        {
+          url: "https://video.twimg.com/ext_tw_video/123456/pu/vid/720x1280/main.mp4",
+          tweetId: "123456",
+          poster: "https://pbs.twimg.com/amplify_video_thumb/123456/img/thumb.jpg",
+          bitrate: 2176000,
+          contentType: "video/mp4"
+        }
+      ];
+      window.__PROMPT_COLLECTOR_X_TWEETS = [
+        {
+          tweetId: "789",
+          author: "@reply",
+          text: "Seedance参考提示词\n使用 @image1 作为动作分镜参考。完整连续的电影画面。\n【整体风格】\n长评论里折叠后才出现的完整视频提示词。"
+        }
+      ];
+    });
     const scrolledXCapture = await page.evaluate((script) => eval(script), source);
 
     assert.equal(scrolledXCapture.site, "x");
     assert.equal(scrolledXCapture.author, "Main Author @main");
     assert.match(scrolledXCapture.prompt, /Keep the main post/);
     assert.equal(scrolledXCapture.images.length, 1);
+    assert.equal(scrolledXCapture.videos.length, 1);
+    assert.match(scrolledXCapture.videos[0].url, /video\.twimg\.com\/ext_tw_video\/123456/);
     assert.match(scrolledXCapture.images[0].url, /pbs\.twimg\.com\/media\/main-post\.svg/);
     assert.equal(scrolledXCapture.candidates.length, 2);
     assert.equal(scrolledXCapture.candidates[0].kind, "main");
     assert.equal(scrolledXCapture.candidates[1].kind, "reply");
     assert.match(scrolledXCapture.candidates[0].promptCandidates[0].text, /Keep the main post/);
-    assert.match(scrolledXCapture.candidates[1].promptCandidates[0].text, /Reply prompt body/);
+    assert.equal(scrolledXCapture.candidates[0].images.length, 2);
+    assert.match(scrolledXCapture.candidates[0].images[1].url, /amplify_video_thumb\/123456/);
+    assert.equal(scrolledXCapture.candidates[0].videos.length, 1);
+    assert.equal(scrolledXCapture.candidates[1].promptCandidates[0].type, "video");
+    assert.match(scrolledXCapture.candidates[1].rawText, /长评论里折叠后才出现/);
+    assert.match(scrolledXCapture.candidates[1].promptCandidates[0].text, /完整连续的电影画面/);
     assert.equal(scrolledXCapture.candidates[1].images.length, 1);
     assert.match(scrolledXCapture.candidates[1].postUrl, /\/reply\/status\/789/);
+
+    await page.evaluate(() => {
+      window.__PROMPT_COLLECTOR_X_TWEETS = [
+        {
+          tweetId: "789",
+          author: "@reply",
+          text: "故事板提示词，拆解在评论区👇 https://t.co/example\n这行只是正文，不应该被当成分镜提示词。"
+        }
+      ];
+    });
+    const noFalseStoryboard = await page.evaluate((script) => eval(script), source);
+    assert.equal(noFalseStoryboard.candidates[1].promptCandidates[0].type, "prompt");
+    assert.match(noFalseStoryboard.candidates[1].promptCandidates[0].text, /故事板提示词，拆解在评论区/);
+
+    await page.evaluate(() => {
+      window.__PROMPT_COLLECTOR_X_TWEETS = [
+        {
+          tweetId: "789",
+          author: "@reply",
+          text: "分镜故事板提示词：\n01 | 醉步入场\n中远景 / 全身镜头，主角站在酒馆外石板地上。"
+        }
+      ];
+    });
+    const storyboardCapture = await page.evaluate((script) => eval(script), source);
+    assert.equal(storyboardCapture.candidates[1].promptCandidates[0].type, "storyboard");
+    assert.match(storyboardCapture.candidates[1].promptCandidates[0].text, /01 \\| 醉步入场/);
 
     console.log("content script browser extraction test passed");
   } finally {

@@ -9,6 +9,9 @@ import {
 
 let sessionClientSecret = "";
 let sourceTab = null;
+const xVideoCache = new Map();
+const xTweetCache = new Map();
+const X_VIDEO_CACHE_TTL = 20 * 60 * 1000;
 
 function rememberSourceTab(tab = {}) {
   if (!tab.id || !tab.url || tab.url.startsWith("chrome-extension://")) return;
@@ -20,8 +23,31 @@ function rememberSourceTab(tab = {}) {
   };
 }
 
+function isXUrl(url = "") {
+  try {
+    const hostname = new URL(url).hostname;
+    return hostname === "x.com" || hostname.endsWith(".x.com") || hostname === "twitter.com" || hostname.endsWith(".twitter.com");
+  } catch {
+    return false;
+  }
+}
+
+async function injectXVideoObserver(tab = {}) {
+  if (!tab.id || !isXUrl(tab.url || "")) return;
+  await chrome.scripting.executeScript({
+    target: { tabId: tab.id },
+    files: ["x-video-bridge.js"]
+  }).catch(() => {});
+  await chrome.scripting.executeScript({
+    target: { tabId: tab.id },
+    files: ["x-video-observer-main.js"],
+    world: "MAIN"
+  }).catch(() => {});
+}
+
 async function openCollectorOverlay(tab) {
   rememberSourceTab(tab);
+  await injectXVideoObserver(tab);
   await chrome.scripting.executeScript({
     target: { tabId: tab.id },
     files: ["overlay.js"]
@@ -58,6 +84,101 @@ async function setSettings(patch) {
   };
   await storageSet({ [STORAGE_KEYS.SETTINGS]: settings });
   return settings;
+}
+
+function normalizeXVideo(video = {}) {
+  if (!video.url || !String(video.url).startsWith("https://video.twimg.com/")) return null;
+  return {
+    url: String(video.url),
+    tweetId: String(video.tweetId || ""),
+    author: String(video.author || ""),
+    poster: String(video.poster || ""),
+    bitrate: Number(video.bitrate || 0),
+    contentType: String(video.contentType || "video/mp4"),
+    endpoint: String(video.endpoint || "")
+  };
+}
+
+function rememberXVideos(tabId, href, videos = []) {
+  if (!tabId) return [];
+  const normalized = videos.map(normalizeXVideo).filter(Boolean);
+  if (!normalized.length) return [];
+  const now = Date.now();
+  const previous = xVideoCache.get(tabId) || { videos: [], href: "", updatedAt: now };
+  const byUrl = new Map(previous.videos.map((video) => [video.url, video]));
+  for (const video of normalized) {
+    byUrl.set(video.url, {
+      ...byUrl.get(video.url),
+      ...video,
+      seenAt: now
+    });
+  }
+  const next = {
+    href,
+    updatedAt: now,
+    videos: [...byUrl.values()].slice(-80)
+  };
+  xVideoCache.set(tabId, next);
+  return normalized;
+}
+
+function normalizeXTweet(tweet = {}) {
+  if (!tweet.tweetId || !tweet.text) return null;
+  return {
+    tweetId: String(tweet.tweetId),
+    author: String(tweet.author || ""),
+    text: String(tweet.text)
+  };
+}
+
+function rememberXTweets(tabId, href, tweets = []) {
+  if (!tabId) return [];
+  const normalized = tweets.map(normalizeXTweet).filter(Boolean);
+  if (!normalized.length) return [];
+  const now = Date.now();
+  const previous = xTweetCache.get(tabId) || { tweets: [], href: "", updatedAt: now };
+  const byId = new Map(previous.tweets.map((tweet) => [tweet.tweetId, tweet]));
+  for (const tweet of normalized) {
+    const existing = byId.get(tweet.tweetId);
+    if (!existing || tweet.text.length >= String(existing.text || "").length) {
+      byId.set(tweet.tweetId, {
+        ...existing,
+        ...tweet,
+        seenAt: now
+      });
+    }
+  }
+  const next = {
+    href,
+    updatedAt: now,
+    tweets: [...byId.values()].slice(-160)
+  };
+  xTweetCache.set(tabId, next);
+  return normalized;
+}
+
+function cachedXVideos(tabId) {
+  const entry = xVideoCache.get(tabId);
+  if (!entry) return [];
+  const now = Date.now();
+  entry.videos = entry.videos.filter((video) => now - Number(video.seenAt || entry.updatedAt || 0) < X_VIDEO_CACHE_TTL);
+  if (!entry.videos.length) {
+    xVideoCache.delete(tabId);
+    return [];
+  }
+  return entry.videos;
+}
+
+function cachedXTweets(tabId) {
+  const entry = xTweetCache.get(tabId);
+  if (!entry) return [];
+  const now = Date.now();
+  entry.tweets = entry.tweets.filter((tweet) => now - Number(tweet.seenAt || entry.updatedAt || 0) < X_VIDEO_CACHE_TTL);
+  if (!entry.tweets.length) {
+    xTweetCache.delete(tabId);
+    return [];
+  }
+  return entry.tweets;
 }
 
 async function getTokens() {
@@ -752,8 +873,20 @@ async function syncCapture(capture) {
   };
 }
 
-async function handleMessage(message) {
+async function handleMessage(message, sender = {}) {
   switch (message?.type) {
+    case "x:videos:found":
+      return {
+        ok: true,
+        videos: rememberXVideos(sender.tab?.id, message.href || sender.tab?.url || "", message.videos || []),
+        tweets: rememberXTweets(sender.tab?.id, message.href || sender.tab?.url || "", message.tweets || [])
+      };
+    case "x:videos:get":
+      return {
+        ok: true,
+        videos: cachedXVideos(sender.tab?.id),
+        tweets: cachedXTweets(sender.tab?.id)
+      };
     case "settings:get":
       return {
         settings: await getSettings(),
@@ -824,8 +957,8 @@ async function handleMessage(message) {
   }
 }
 
-chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-  handleMessage(message)
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  handleMessage(message, sender)
     .then((response) => sendResponse(response))
     .catch((error) => sendResponse({ ok: false, message: error.message, errorCode: error.code || "UNKNOWN" }));
   return true;

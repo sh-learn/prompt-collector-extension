@@ -208,7 +208,8 @@ textarea,
 }
 
 .candidate-prompt input,
-.candidate-image input {
+.candidate-image input,
+.candidate-video input {
   margin: 2px 0 0;
 }
 
@@ -237,7 +238,8 @@ textarea,
   z-index: 1;
 }
 
-.candidate-image img {
+.candidate-image img,
+.candidate-image video {
   display: block;
   width: 100%;
   aspect-ratio: 1;
@@ -247,7 +249,8 @@ textarea,
   background: #eef1f5;
 }
 
-.candidate-image input:checked + img {
+.candidate-image input:checked + img,
+.candidate-image input:checked + video {
   border-color: #7c5cff;
 }
 
