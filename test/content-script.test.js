@@ -93,6 +93,59 @@ async function main() {
     assert.equal(plainCapture.prompt, "");
     assert.match(plainCapture.title, /太疯狂了/);
 
+    await page.route("https://x.com/**", async (route) => {
+      await route.fulfill({
+        contentType: "text/html; charset=utf-8",
+        body: `<!doctype html>
+          <html>
+            <head>
+              <title>Main X Post</title>
+              <style>
+                body { margin: 0; }
+                article { padding: 24px; }
+                #main-post { height: 1400px; }
+                #main-post img { display: block; width: 320px; height: 240px; margin-top: 560px; }
+                #reply { height: 180px; }
+              </style>
+            </head>
+            <body>
+              <main>
+                <article id="main-post" data-testid="tweet">
+                  <div data-testid="User-Name">Main Author<br>@main</div>
+                  <div data-testid="tweetText">Prompt: Keep the main post when its top is above the viewport.</div>
+                  <time datetime="2026-05-22T10:00:00.000Z"></time>
+                  <div data-testid="tweetPhoto">
+                    <img src="https://pbs.twimg.com/media/main-post.svg?format=svg&name=medium" alt="main result">
+                  </div>
+                </article>
+                <article id="reply" data-testid="tweet">
+                  <div data-testid="User-Name">Reply Author<br>@reply</div>
+                  <div data-testid="tweetText">A visible reply without media.</div>
+                </article>
+              </main>
+            </body>
+          </html>`
+      });
+    });
+    await page.route("https://pbs.twimg.com/media/**", async (route) => {
+      await route.fulfill({
+        contentType: "image/svg+xml",
+        body: `<svg xmlns="http://www.w3.org/2000/svg" width="320" height="240">
+          <rect width="320" height="240" fill="#ced7ee"/>
+        </svg>`
+      });
+    });
+    await page.goto("https://x.com/main/status/123456");
+    await page.waitForLoadState("networkidle");
+    await page.evaluate(() => window.scrollTo(0, 620));
+    const scrolledXCapture = await page.evaluate((script) => eval(script), source);
+
+    assert.equal(scrolledXCapture.site, "x");
+    assert.equal(scrolledXCapture.author, "Main Author @main");
+    assert.match(scrolledXCapture.prompt, /Keep the main post/);
+    assert.equal(scrolledXCapture.images.length, 1);
+    assert.match(scrolledXCapture.images[0].url, /pbs\.twimg\.com\/media\/main-post\.svg/);
+
     console.log("content script browser extraction test passed");
   } finally {
     await browser.close();

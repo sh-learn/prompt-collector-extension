@@ -25,7 +25,10 @@
       return null;
     }
     const articles = [...document.querySelectorAll("article[data-testid='tweet']")];
-    return articles.find((article) => article.getBoundingClientRect().top >= 0) || articles[0] || null;
+    return articles.find((article) => {
+      const rect = article.getBoundingClientRect();
+      return rect.bottom > 0 && rect.top < window.innerHeight;
+    }) || articles[0] || null;
   }
 
   function extractTweet(article) {
