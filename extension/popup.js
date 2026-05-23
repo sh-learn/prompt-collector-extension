@@ -1,6 +1,12 @@
+import {
+  createDefaultSelection,
+  selectedCapture
+} from "./lib/candidate-selection.js";
+
 const state = {
   capture: null,
-  fieldValues: {}
+  fieldValues: {},
+  selection: { prompts: {}, images: {} }
 };
 
 const LAST_DRAFT_KEY = "promptCollectorLastDraft";
@@ -12,6 +18,8 @@ const els = {
   save: document.querySelector("#save"),
   preview: document.querySelector("#preview"),
   fieldForm: document.querySelector("#fieldForm"),
+  candidatePicker: document.querySelector("#candidatePicker"),
+  candidateList: document.querySelector("#candidateList"),
   imageCount: document.querySelector("#imageCount"),
   sourceHost: document.querySelector("#sourceHost"),
   images: document.querySelector("#images"),
@@ -105,6 +113,10 @@ function defaultValues(capture) {
   };
 }
 
+function selectedPreviewCapture(capture) {
+  return selectedCapture(capture, state.selection);
+}
+
 function defaultValueForField(field, fieldMap, capture) {
   const fieldId = field.id || field.name;
   if (state.fieldValues && Object.hasOwn(state.fieldValues, fieldId)) {
@@ -152,6 +164,7 @@ function renderFieldForm(fields, fieldMap, capture) {
         if (kind === "select" && field.options?.length) return document.createElement("select");
         if (kind === "number") return document.createElement("input");
         if (kind === "datetime") return document.createElement("input");
+        if (kind === "url") return document.createElement("input");
         return document.createElement("textarea");
       })();
       input.className = "field-input";
@@ -224,15 +237,17 @@ async function send(message) {
 
 async function renderPreview(capture) {
   els.preview.hidden = false;
-  const imageCount = capture.images?.length || 0;
-  const videoCount = capture.videos?.length || 0;
+  const previewCapture = selectedPreviewCapture(capture);
+  const imageCount = previewCapture.images?.length || 0;
+  const videoCount = previewCapture.videos?.length || 0;
   els.imageCount.textContent = `${imageCount} 张图片 / ${videoCount} 个视频`;
   els.sourceHost.textContent = new URL(capture.sourceUrl).hostname;
   els.recordLink.hidden = true;
   const schema = await loadSchema();
-  renderFieldForm(schema.fields, schema.fieldMap, capture);
+  renderCandidatePicker(capture);
+  renderFieldForm(schema.fields, schema.fieldMap, previewCapture);
   els.images.replaceChildren(
-    ...(capture.images || []).slice(0, 8).map((image) => {
+    ...(previewCapture.images || []).slice(0, 8).map((image) => {
       const img = document.createElement("img");
       img.src = image.url;
       img.alt = image.alt || "";
@@ -252,6 +267,78 @@ async function renderPreview(capture) {
   els.save.disabled = false;
 }
 
+function renderCandidatePicker(capture) {
+  const candidates = capture.candidates || [];
+  els.candidatePicker.hidden = !candidates.length;
+  if (!candidates.length) {
+    els.candidateList.replaceChildren();
+    return;
+  }
+  els.candidateList.replaceChildren(...candidates.map((candidate) => {
+    const card = document.createElement("article");
+    card.className = "candidate-card";
+
+    const header = document.createElement("div");
+    header.className = "candidate-card-header";
+    const kind = document.createElement("span");
+    kind.className = "candidate-kind";
+    kind.textContent = candidate.kind === "main" ? "主帖" : "评论";
+    const author = document.createElement("span");
+    author.className = "candidate-author";
+    author.textContent = candidate.author || "未知作者";
+    header.append(kind, author);
+    card.append(header);
+
+    if (candidate.rawText) {
+      const text = document.createElement("div");
+      text.className = "candidate-text";
+      text.textContent = candidate.rawText;
+      card.append(text);
+    }
+
+    for (const prompt of candidate.promptCandidates || []) {
+      const label = document.createElement("label");
+      label.className = "candidate-prompt";
+      const input = document.createElement("input");
+      input.type = "checkbox";
+      input.checked = Boolean(state.selection.prompts[prompt.id]);
+      input.addEventListener("change", () => {
+        state.selection.prompts[prompt.id] = input.checked;
+        renderPreview(state.capture).then(saveLastDraft).catch(() => {});
+      });
+      const body = document.createElement("span");
+      body.className = "candidate-prompt-text";
+      body.textContent = prompt.text;
+      label.append(input, body);
+      card.append(label);
+    }
+
+    if (candidate.images?.length) {
+      const images = document.createElement("div");
+      images.className = "candidate-images";
+      for (const image of candidate.images) {
+        const label = document.createElement("label");
+        label.className = "candidate-image";
+        const input = document.createElement("input");
+        input.type = "checkbox";
+        input.checked = Boolean(state.selection.images[image.id]);
+        input.addEventListener("change", () => {
+          state.selection.images[image.id] = input.checked;
+          renderPreview(state.capture).then(saveLastDraft).catch(() => {});
+        });
+        const img = document.createElement("img");
+        img.src = image.url;
+        img.alt = image.alt || "";
+        img.loading = "lazy";
+        label.append(input, img);
+        images.append(label);
+      }
+      card.append(images);
+    }
+    return card;
+  }));
+}
+
 async function collect() {
   try {
     setStatus("正在读取页面内容...");
@@ -259,6 +346,7 @@ async function collect() {
     const capture = await collectFromPage();
     state.capture = capture;
     state.fieldValues = {};
+    state.selection = createDefaultSelection(capture.candidates || []);
     await renderPreview(capture);
     await saveLastDraft();
     setStatus(`已采集：${capture.images?.length || 0} 张图片，${capture.videos?.length || 0} 个视频`);
@@ -303,7 +391,7 @@ els.save.addEventListener("click", async () => {
     setStatus("正在保存到飞书...");
     els.save.disabled = true;
     const payload = {
-      ...state.capture,
+      ...selectedCapture(state.capture, state.selection),
       targetTableId: els.tableSelect.value,
       fieldValues: collectFieldValues()
     };

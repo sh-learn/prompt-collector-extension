@@ -138,6 +138,119 @@ textarea,
   margin-top: 10px;
 }
 
+.candidate-picker {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.candidate-heading {
+  color: #344054;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.candidate-list {
+  display: grid;
+  gap: 8px;
+}
+
+.candidate-card {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid #e4e7ec;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.candidate-card-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  color: #344054;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.candidate-kind {
+  flex: 0 0 auto;
+  color: #2557d6;
+}
+
+.candidate-author {
+  min-width: 0;
+  overflow: hidden;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.candidate-text {
+  display: -webkit-box;
+  overflow: hidden;
+  color: #667085;
+  font-size: 12px;
+  line-height: 1.45;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.candidate-prompt {
+  display: grid;
+  grid-template-columns: 18px 1fr;
+  gap: 8px;
+  align-items: start;
+  color: #24324b;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.candidate-prompt input,
+.candidate-image input {
+  margin: 2px 0 0;
+}
+
+.candidate-prompt-text {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+}
+
+.candidate-images {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.candidate-image {
+  position: relative;
+  display: block;
+}
+
+.candidate-image input {
+  position: absolute;
+  top: 5px;
+  left: 5px;
+  z-index: 1;
+}
+
+.candidate-image img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border: 2px solid transparent;
+  border-radius: 6px;
+  background: #eef1f5;
+}
+
+.candidate-image input:checked + img {
+  border-color: #7c5cff;
+}
+
 .field-label {
   display: grid;
   gap: 6px;

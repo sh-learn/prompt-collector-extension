@@ -113,14 +113,19 @@ async function main() {
                 <article id="main-post" data-testid="tweet">
                   <div data-testid="User-Name">Main Author<br>@main</div>
                   <div data-testid="tweetText">Prompt: Keep the main post when its top is above the viewport.</div>
-                  <time datetime="2026-05-22T10:00:00.000Z"></time>
+                  <a href="/main/status/123456"><time datetime="2026-05-22T10:00:00.000Z"></time></a>
                   <div data-testid="tweetPhoto">
                     <img src="https://pbs.twimg.com/media/main-post.svg?format=svg&name=medium" alt="main result">
                   </div>
                 </article>
                 <article id="reply" data-testid="tweet">
                   <div data-testid="User-Name">Reply Author<br>@reply</div>
-                  <div data-testid="tweetText">A visible reply without media.</div>
+                  <div data-testid="tweetText">完整提示词：Reply prompt body.</div>
+                  <a href="/reply/status/789"><time datetime="2026-05-22T10:03:00.000Z"></time></a>
+                  <div data-testid="tweetPhoto">
+                    <img src="https://pbs.twimg.com/media/reply-post.svg?format=svg&name=small" alt="reply result">
+                  </div>
+                  <img src="https://abs.twimg.com/emoji/v2/svg/1f4d2.svg" alt="emoji">
                 </article>
               </main>
             </body>
@@ -145,6 +150,13 @@ async function main() {
     assert.match(scrolledXCapture.prompt, /Keep the main post/);
     assert.equal(scrolledXCapture.images.length, 1);
     assert.match(scrolledXCapture.images[0].url, /pbs\.twimg\.com\/media\/main-post\.svg/);
+    assert.equal(scrolledXCapture.candidates.length, 2);
+    assert.equal(scrolledXCapture.candidates[0].kind, "main");
+    assert.equal(scrolledXCapture.candidates[1].kind, "reply");
+    assert.match(scrolledXCapture.candidates[0].promptCandidates[0].text, /Keep the main post/);
+    assert.match(scrolledXCapture.candidates[1].promptCandidates[0].text, /Reply prompt body/);
+    assert.equal(scrolledXCapture.candidates[1].images.length, 1);
+    assert.match(scrolledXCapture.candidates[1].postUrl, /\/reply\/status\/789/);
 
     console.log("content script browser extraction test passed");
   } finally {
