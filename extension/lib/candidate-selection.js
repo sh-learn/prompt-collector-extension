@@ -30,3 +30,22 @@ export function selectedCandidateImages(candidates = [], selection = {}) {
   const selectedImages = selection.images || {};
   return candidates.flatMap((candidate) => (candidate.images || []).filter((image) => selectedImages[image.id]));
 }
+
+export function selectedCapture(capture = {}, selection = {}) {
+  if (!capture.candidates?.length) return capture;
+  const prompt = selectedCandidatePrompt(capture.candidates, selection);
+  const images = selectedCandidateImages(capture.candidates, selection);
+  return {
+    ...capture,
+    prompt: prompt || capture.prompt || "",
+    images,
+    rawSelection: {
+      selectedCandidateIds: capture.candidates
+        .filter((candidate) =>
+          (candidate.promptCandidates || []).some((item) => selection.prompts?.[item.id]) ||
+          (candidate.images || []).some((image) => selection.images?.[image.id])
+        )
+        .map((candidate) => candidate.id)
+    }
+  };
+}

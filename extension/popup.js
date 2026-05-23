@@ -1,7 +1,6 @@
 import {
   createDefaultSelection,
-  selectedCandidateImages,
-  selectedCandidatePrompt
+  selectedCapture
 } from "./lib/candidate-selection.js";
 
 const state = {
@@ -115,14 +114,7 @@ function defaultValues(capture) {
 }
 
 function selectedPreviewCapture(capture) {
-  if (!capture?.candidates?.length) return capture;
-  const prompt = selectedCandidatePrompt(capture.candidates, state.selection);
-  const images = selectedCandidateImages(capture.candidates, state.selection);
-  return {
-    ...capture,
-    prompt: prompt || capture.prompt || "",
-    images
-  };
+  return selectedCapture(capture, state.selection);
 }
 
 function defaultValueForField(field, fieldMap, capture) {
@@ -311,7 +303,6 @@ function renderCandidatePicker(capture) {
       input.checked = Boolean(state.selection.prompts[prompt.id]);
       input.addEventListener("change", () => {
         state.selection.prompts[prompt.id] = input.checked;
-        state.fieldValues = {};
         renderPreview(state.capture).then(saveLastDraft).catch(() => {});
       });
       const body = document.createElement("span");
@@ -332,7 +323,6 @@ function renderCandidatePicker(capture) {
         input.checked = Boolean(state.selection.images[image.id]);
         input.addEventListener("change", () => {
           state.selection.images[image.id] = input.checked;
-          state.fieldValues = {};
           renderPreview(state.capture).then(saveLastDraft).catch(() => {});
         });
         const img = document.createElement("img");
@@ -400,7 +390,7 @@ els.save.addEventListener("click", async () => {
     setStatus("正在保存到飞书...");
     els.save.disabled = true;
     const payload = {
-      ...state.capture,
+      ...selectedCapture(state.capture, state.selection),
       targetTableId: els.tableSelect.value,
       fieldValues: collectFieldValues()
     };
