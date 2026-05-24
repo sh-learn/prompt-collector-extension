@@ -81,7 +81,7 @@
     if (!trimmed) return null;
     const markerGroups = [
       {
-        labels: ["seedance参考提示词", "seedance reference prompt", "视频提示词", "video prompt"],
+        labels: ["seedance参考提示词", "seedance提示词", "seedance reference prompt", "视频提示词", "video prompt"],
         type: "video"
       },
       {
@@ -96,7 +96,7 @@
     for (const group of markerGroups) {
       for (const label of group.labels) {
         const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-        const colon = trimmed.match(new RegExp(`^${escaped}\\s*[:：]\\s*(.*)$`, "i"));
+        const colon = trimmed.match(new RegExp(`^(?:.{0,48}?)?${escaped}\\s*[:：]\\s*(.*)$`, "i"));
         if (colon) return { label, type: group.type, inlineText: colon[1].trim() };
         if (new RegExp(`^${escaped}\\s*$`, "i").test(trimmed)) {
           return { label, type: group.type, inlineText: "" };
@@ -231,6 +231,41 @@
     return uniqBy(videos, (video) => video.url).slice(0, MAX_MEDIA);
   }
 
+  function tweetIdFromVideoUrl(url = "") {
+    try {
+      const parsed = new URL(url, location.href);
+      return parsed.pathname.match(/\/(?:ext_tw_video|tweet_video)\/(\d+)\//)?.[1] || "";
+    } catch {
+      return "";
+    }
+  }
+
+  function performanceXVideos() {
+    const entries = typeof performance?.getEntriesByType === "function"
+      ? performance.getEntriesByType("resource")
+      : [];
+    return uniqBy(entries
+      .map((entry) => String(entry.name || ""))
+      .filter((url) => {
+        try {
+          const parsed = new URL(url, location.href);
+          return parsed.hostname === "video.twimg.com" && /\.mp4(?:$|\?)/.test(parsed.href);
+        } catch {
+          return false;
+        }
+      })
+      .map((url) => ({
+        url,
+        tweetId: tweetIdFromVideoUrl(url),
+        poster: "",
+        bitrate: 0,
+        contentType: "video/mp4",
+        source: "performance"
+      })),
+      (video) => video.url
+    ).slice(-MAX_MEDIA);
+  }
+
   async function cachedXData() {
     const localVideos = Array.isArray(globalThis.__PROMPT_COLLECTOR_X_VIDEOS)
       ? globalThis.__PROMPT_COLLECTOR_X_VIDEOS
@@ -238,15 +273,20 @@
     const localTweets = Array.isArray(globalThis.__PROMPT_COLLECTOR_X_TWEETS)
       ? globalThis.__PROMPT_COLLECTOR_X_TWEETS
       : [];
-    if (!globalThis.chrome?.runtime?.sendMessage) return { videos: localVideos, tweets: localTweets };
+    if (!globalThis.chrome?.runtime?.sendMessage) {
+      return {
+        videos: uniqBy([...localVideos, ...performanceXVideos()], (video) => video.url).slice(0, MAX_MEDIA),
+        tweets: localTweets
+      };
+    }
     try {
       const response = await chrome.runtime.sendMessage({ type: "x:videos:get", href: location.href });
       return {
-        videos: uniqBy([...(response?.videos || []), ...localVideos], (video) => video.url).slice(0, MAX_MEDIA),
+        videos: uniqBy([...(response?.videos || []), ...localVideos, ...performanceXVideos()], (video) => video.url).slice(0, MAX_MEDIA),
         tweets: uniqBy([...(response?.tweets || []), ...localTweets], (tweet) => tweet.tweetId).slice(-160)
       };
     } catch {
-      return { videos: localVideos, tweets: localTweets };
+      return { videos: uniqBy([...localVideos, ...performanceXVideos()], (video) => video.url).slice(0, MAX_MEDIA), tweets: localTweets };
     }
   }
 
@@ -292,9 +332,10 @@
   function xArticleVideos(article, idPrefix, cachedVideos) {
     const tweetId = tweetIdFromUrl(tweetPostUrl(article));
     if (!tweetId) return [];
+    const hasVideoElement = Boolean(article.querySelector("video"));
     return uniqBy(
       (cachedVideos || [])
-        .filter((video) => video.tweetId === tweetId && video.url)
+        .filter((video) => video.url && (video.tweetId === tweetId || (video.source === "performance" && hasVideoElement) || (!video.tweetId && hasVideoElement)))
         .map((video, index) => ({
           url: video.url,
           poster: video.poster || "",

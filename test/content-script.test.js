@@ -160,7 +160,7 @@ async function main() {
         {
           tweetId: "789",
           author: "@reply",
-          text: "Seedance参考提示词\n使用 @image1 作为动作分镜参考。完整连续的电影画面。\n【整体风格】\n长评论里折叠后才出现的完整视频提示词。"
+          text: "Seedance提示词：\n使用 @image1 作为动作分镜参考。完整连续的电影画面。\n【整体风格】\n长评论里折叠后才出现的完整视频提示词。"
         }
       ];
     });
@@ -204,13 +204,25 @@ async function main() {
         {
           tweetId: "789",
           author: "@reply",
-          text: "分镜故事板提示词：\n01 | 醉步入场\n中远景 / 全身镜头，主角站在酒馆外石板地上。"
+          text: "《太极推手四两拨千斤》故事板提示词：\n01 | 醉步入场\n中远景 / 全身镜头，主角站在酒馆外石板地上。"
         }
       ];
     });
     const storyboardCapture = await page.evaluate((script) => eval(script), source);
     assert.equal(storyboardCapture.candidates[1].promptCandidates[0].type, "storyboard");
     assert.match(storyboardCapture.candidates[1].promptCandidates[0].text, /01 \\| 醉步入场/);
+
+    await page.evaluate(() => {
+      window.__PROMPT_COLLECTOR_X_VIDEOS = [];
+      const originalGetEntriesByType = performance.getEntriesByType.bind(performance);
+      performance.getEntriesByType = (type) => type === "resource"
+        ? [{ name: "https://video.twimg.com/ext_tw_video/999999/pu/vid/720x1280/fallback.mp4?tag=12" }]
+        : originalGetEntriesByType(type);
+    });
+    const performanceVideoCapture = await page.evaluate((script) => eval(script), source);
+    assert.equal(performanceVideoCapture.videos.length, 1);
+    assert.match(performanceVideoCapture.videos[0].url, /fallback\.mp4/);
+    assert.equal(performanceVideoCapture.candidates[0].videos.length, 1);
 
     console.log("content script browser extraction test passed");
   } finally {

@@ -49,14 +49,34 @@ async function loadTables() {
 
 async function saveLastDraft() {
   if (!state.capture) return;
-  await chrome.storage.local.set({
-    [LAST_DRAFT_KEY]: {
-      capture: state.capture,
-      tableId: els.tableSelect.value || "",
-      fieldValues: collectFieldValues(),
-      savedAt: new Date().toISOString()
-    }
-  });
+  try {
+    await chrome.storage.local.set({
+      [LAST_DRAFT_KEY]: {
+        capture: state.capture,
+        tableId: els.tableSelect.value || "",
+        fieldValues: collectFieldValues(),
+        savedAt: new Date().toISOString()
+      }
+    });
+  } catch (error) {
+    if (!String(error?.message || "").includes("Extension context invalidated")) throw error;
+  }
+}
+
+function forgetLastDraft() {
+  try {
+    chrome.storage.local.remove(LAST_DRAFT_KEY).catch(() => {});
+  } catch {
+    // The page-side iframe can outlive a reload of the unpacked extension.
+  }
+}
+
+function sendCloseOverlayMessage() {
+  try {
+    chrome.runtime.sendMessage({ type: "overlay:close" }).catch(() => {});
+  } catch {
+    // postMessage below is enough for stale iframes whose extension context is gone.
+  }
 }
 
 function orderedFields(fields = []) {
@@ -487,10 +507,12 @@ els.openOptions.addEventListener("click", () => {
 });
 
 els.closePopup.addEventListener("click", () => {
-  chrome.storage.local.remove(LAST_DRAFT_KEY).catch(() => {});
   if (new URLSearchParams(location.search).get("embedded") === "1") {
     window.parent.postMessage({ type: "prompt-collector:close" }, "*");
+    sendCloseOverlayMessage();
+    forgetLastDraft();
   } else {
+    forgetLastDraft();
     window.close();
   }
 });

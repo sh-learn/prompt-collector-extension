@@ -54,6 +54,17 @@ async function openCollectorOverlay(tab) {
   });
 }
 
+async function closeCollectorOverlay(tabId = sourceTab?.id) {
+  if (!tabId) return { closed: false };
+  await chrome.scripting.executeScript({
+    target: { tabId },
+    func: () => {
+      document.getElementById("prompt-collector-overlay-host")?.remove();
+    }
+  });
+  return { closed: true };
+}
+
 function extensionVersion() {
   return chrome.runtime.getManifest().version;
 }
@@ -895,6 +906,8 @@ async function handleMessage(message, sender = {}) {
       };
     case "sourceTab:get":
       return { ok: true, tab: sourceTab };
+    case "overlay:close":
+      return { ok: true, ...(await closeCollectorOverlay(message.tabId)) };
     case "debug:lastSync": {
       const data = await storageGet([STORAGE_KEYS.LAST_SYNC_DEBUG]);
       return { ok: true, debug: data[STORAGE_KEYS.LAST_SYNC_DEBUG] || null };
